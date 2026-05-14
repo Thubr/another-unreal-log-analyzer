@@ -1,0 +1,35 @@
+# Build outputs
+bin/
+obj/
+out/
+artifacts/
+
+# .NET user files
+*.user
+*.suo
+*.userprefs
+
+# IDE
+.vs/
+.vscode/
+.idea/
+
+# Test/coverage
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+# Logs and temporary files
+*.tmp
+*.temp
+*.log
+
+# Local analyzer output (may contain sensitive context)
+.uelog-index/
+reports/
+exports/
+
+# OS files
+.DS_Store
+Thumbs.db
