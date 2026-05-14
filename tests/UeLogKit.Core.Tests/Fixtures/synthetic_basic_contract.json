@@ -1,0 +1,53 @@
+{
+  "name": "synthetic-basic-contract",
+  "input": {
+    "sourceId": "fixture:synthetic-basic",
+    "sourcePath": "fixtures/synthetic-basic.log"
+  },
+  "options": {
+    "includeContinuationLines": true,
+    "captureRawTextHash": true,
+    "strictSchemaVersion": true,
+    "expectedSchemaVersion": "1.0"
+  },
+  "expectedEvents": [
+    {
+      "schemaVersion": "1.0",
+      "sourceId": "fixture:synthetic-basic",
+      "sourcePath": "fixtures/synthetic-basic.log",
+      "lineNumber": 1,
+      "timestamp": "2026-01-01T12:00:00+00:00",
+      "relativeTime": "00:00:00.0000000",
+      "frame": 1,
+      "category": "LogInit",
+      "verbosity": "Display",
+      "message": "Synthetic startup complete",
+      "continuationLines": [],
+      "fields": {
+        "platform": "SyntheticOS",
+        "build": "DEV"
+      },
+      "rawTextHash": "sha256:synthetic0001"
+    },
+    {
+      "schemaVersion": "1.0",
+      "sourceId": "fixture:synthetic-basic",
+      "sourcePath": "fixtures/synthetic-basic.log",
+      "lineNumber": 2,
+      "timestamp": "2026-01-01T12:00:00.2500000+00:00",
+      "relativeTime": "00:00:00.2500000",
+      "frame": 2,
+      "category": "LogNet",
+      "verbosity": "Warning",
+      "message": "Synthetic packet loss spike detected",
+      "continuationLines": [
+        "Synthetic detail: transient jitter only"
+      ],
+      "fields": {
+        "lossPct": "3.2",
+        "session": "SYN-001"
+      },
+      "rawTextHash": "sha256:synthetic0002"
+    }
+  ]
+}
