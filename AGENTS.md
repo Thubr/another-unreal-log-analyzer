@@ -1,0 +1,1 @@
+Do not add real logs, secrets, proprietary source snippets, internal identifiers, or NDA-covered platform details. Use synthetic fixtures only unless the user explicitly provides sanitized data and confirms it is safe to commit.
