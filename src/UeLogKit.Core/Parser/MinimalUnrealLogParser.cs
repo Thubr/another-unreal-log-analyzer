@@ -1,0 +1,191 @@
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
+
+namespace UeLogKit.Core.Parser;
+
+/// <summary>
+/// Minimal Unreal log parser that supports only a narrow set of synthetic/core line formats.
+/// Supported patterns:
+/// 1) [yyyy.MM.dd-HH.mm.ss:fff][frame]Category: Verbosity: Message
+/// 2) Category: Verbosity: Message
+/// 3) Plain message fallback.
+/// Intentionally out-of-scope for this minimal implementation:
+/// multi-line stack traces, locale-specific timestamps, and advanced token extraction.
+/// </summary>
+public sealed class MinimalUnrealLogParser : ILogEventSource
+{
+    public async IAsyncEnumerable<LogEvent> ReadEventsAsync(
+        LogInput input,
+        ParserOptions options,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        LogEvent? pending = null;
+        var lineNumber = 0;
+
+        await foreach (var rawLine in ReadLinesAsync(input.SourcePath, cancellationToken))
+        {
+            lineNumber++;
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (string.IsNullOrWhiteSpace(rawLine))
+            {
+                continue;
+            }
+
+            if (IsContinuation(rawLine) && pending is not null)
+            {
+                if (options.IncludeContinuationLines)
+                {
+                    var updated = pending.ContinuationLines.Concat([rawLine.Trim()]).ToArray();
+                    pending = pending with { ContinuationLines = updated };
+                }
+
+                continue;
+            }
+
+            if (pending is not null)
+            {
+                yield return pending;
+            }
+
+            pending = ParseLine(rawLine, lineNumber, input, options);
+            await Task.Yield();
+        }
+
+        if (pending is not null)
+        {
+            yield return pending;
+        }
+    }
+
+    private static bool IsContinuation(string line) => line.Length > 0 && char.IsWhiteSpace(line[0]);
+
+    private static LogEvent ParseLine(string rawLine, int lineNumber, LogInput input, ParserOptions options)
+    {
+        var timestamp = default(DateTimeOffset?);
+        var frame = default(int?);
+        var category = "Unknown";
+        var verbosity = "Display";
+        var message = rawLine.Trim();
+
+        var remainder = rawLine;
+        if (TryParseTimestampAndFrame(rawLine, out var parsedTimestamp, out var parsedFrame, out var rest))
+        {
+            timestamp = parsedTimestamp;
+            frame = parsedFrame;
+            remainder = rest;
+        }
+
+        if (TryParseCategoryVerbosityMessage(remainder, out var parsedCategory, out var parsedVerbosity, out var parsedMessage))
+        {
+            category = parsedCategory;
+            verbosity = parsedVerbosity;
+            message = parsedMessage;
+        }
+
+        var schemaVersion = options.StrictSchemaVersion ? options.ExpectedSchemaVersion : LogEventSchemaVersion.V1;
+        var hash = options.CaptureRawTextHash ? ComputeSha256(rawLine) : string.Empty;
+
+        return new LogEvent(
+            SchemaVersion: schemaVersion,
+            SourceId: input.SourceId,
+            SourcePath: input.SourcePath,
+            LineNumber: lineNumber,
+            Timestamp: timestamp,
+            RelativeTime: null,
+            Frame: frame,
+            Category: category,
+            Verbosity: verbosity,
+            Message: message,
+            ContinuationLines: Array.Empty<string>(),
+            Fields: new Dictionary<string, string>(),
+            RawTextHash: hash);
+    }
+
+    private static bool TryParseTimestampAndFrame(string line, out DateTimeOffset timestamp, out int frame, out string remainder)
+    {
+        timestamp = default;
+        frame = default;
+        remainder = line;
+
+        if (!line.StartsWith('['))
+        {
+            return false;
+        }
+
+        var closeTimestamp = line.IndexOf(']');
+        if (closeTimestamp < 0)
+        {
+            return false;
+        }
+
+        var timestampText = line[1..closeTimestamp];
+        const string format = "yyyy.MM.dd-HH.mm.ss:fff";
+        if (!DateTimeOffset.TryParseExact(timestampText, format, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out timestamp))
+        {
+            return false;
+        }
+
+        var frameStart = line.IndexOf('[', closeTimestamp + 1);
+        var frameEnd = line.IndexOf(']', frameStart + 1);
+        if (frameStart < 0 || frameEnd < 0)
+        {
+            return false;
+        }
+
+        if (!int.TryParse(line[(frameStart + 1)..frameEnd].Trim(), out frame))
+        {
+            return false;
+        }
+
+        remainder = line[(frameEnd + 1)..].TrimStart();
+        return true;
+    }
+
+    private static bool TryParseCategoryVerbosityMessage(string line, out string category, out string verbosity, out string message)
+    {
+        category = "Unknown";
+        verbosity = "Display";
+        message = line.Trim();
+
+        var firstColon = line.IndexOf(':');
+        if (firstColon <= 0)
+        {
+            return false;
+        }
+
+        var secondColon = line.IndexOf(':', firstColon + 1);
+        if (secondColon <= firstColon + 1)
+        {
+            return false;
+        }
+
+        category = line[..firstColon].Trim();
+        verbosity = line[(firstColon + 1)..secondColon].Trim();
+        message = line[(secondColon + 1)..].Trim();
+        return category.Length > 0 && verbosity.Length > 0;
+    }
+
+    private static string ComputeSha256(string text)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(text));
+        return $"sha256:{Convert.ToHexString(bytes).ToLowerInvariant()}";
+    }
+
+    private static async IAsyncEnumerable<string> ReadLinesAsync(string sourcePath, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        using var stream = File.OpenRead(sourcePath);
+        using var reader = new StreamReader(stream);
+
+        while (!reader.EndOfStream)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var line = await reader.ReadLineAsync(cancellationToken);
+            if (line is not null)
+            {
+                yield return line;
+            }
+        }
+    }
+}
