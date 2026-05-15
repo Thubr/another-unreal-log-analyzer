@@ -1,10 +1,14 @@
-Microsoft Visual Studio Solution File, Format Version 12.00
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UeLogKit.Core", "src/UeLogKit.Core/UeLogKit.Core.csproj", "{8A3EA0BE-AD73-4F6A-95A0-7BE7F1F37D01}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UeLogKit.Core", "src\UeLogKit.Core\UeLogKit.Core.csproj", "{8A3EA0BE-AD73-4F6A-95A0-7BE7F1F37D01}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UeLogKit.Core.Tests", "tests/UeLogKit.Core.Tests/UeLogKit.Core.Tests.csproj", "{00144334-A0C9-4F04-BFAD-A9E17669E22A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UeLogKit.Core.Tests", "tests\UeLogKit.Core.Tests\UeLogKit.Core.Tests.csproj", "{00144334-A0C9-4F04-BFAD-A9E17669E22A}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{706FDA79-0E95-4018-9212-74B50904A75F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UeLogKit.Cli", "src\UeLogKit.Cli\UeLogKit.Cli.csproj", "{C4669CC6-45F8-4418-A37B-3EB9CA21B316}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -20,5 +24,12 @@ Global
 		{00144334-A0C9-4F04-BFAD-A9E17669E22A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{00144334-A0C9-4F04-BFAD-A9E17669E22A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{00144334-A0C9-4F04-BFAD-A9E17669E22A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C4669CC6-45F8-4418-A37B-3EB9CA21B316}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C4669CC6-45F8-4418-A37B-3EB9CA21B316}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C4669CC6-45F8-4418-A37B-3EB9CA21B316}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C4669CC6-45F8-4418-A37B-3EB9CA21B316}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{C4669CC6-45F8-4418-A37B-3EB9CA21B316} = {706FDA79-0E95-4018-9212-74B50904A75F}
 	EndGlobalSection
 EndGlobal
