@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/UeLogKit.Core/UeLogKit.Core.csproj" />
+    <ProjectReference Include="../../src/UeLogKit.Cli/UeLogKit.Cli.csproj" />
   </ItemGroup>
 
   <ItemGroup>
