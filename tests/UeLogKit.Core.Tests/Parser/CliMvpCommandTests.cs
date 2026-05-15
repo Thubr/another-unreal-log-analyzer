@@ -48,6 +48,34 @@ public sealed class CliMvpCommandTests
     }
 
     [Fact]
+    public async Task Filter_applies_contains_text_match()
+    {
+        var path = WriteSyntheticLog();
+        var stdout = new StringWriter();
+
+        var code = await CliApp.RunAsync(["filter", path, "--contains=join"], stdout, new StringWriter(), default);
+
+        Assert.Equal(0, code);
+        var lines = stdout.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.Single(lines);
+        Assert.Contains("Join failed", lines[0]);
+    }
+
+    [Fact]
+    public async Task Filter_applies_since_and_until_relative_window()
+    {
+        var path = WriteSyntheticLog();
+        var stdout = new StringWriter();
+
+        var code = await CliApp.RunAsync(["filter", path, "--since=00:00:00.050", "--until=00:00:00.150"], stdout, new StringWriter(), default);
+
+        Assert.Equal(0, code);
+        var lines = stdout.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.Single(lines);
+        Assert.Contains("Packet loss", lines[0]);
+    }
+
+    [Fact]
     public async Task Clean_outputs_simplified_lines()
     {
         var path = WriteSyntheticLog();
