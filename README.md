@@ -30,6 +30,8 @@ uelog clean <logPath>
   - Filters parsed events and prints matching lines in a readable format.
   - `--category=<Category>` keeps only events with a matching category.
   - `--min-level=<Level>` keeps events at or above the provided severity threshold.
+  - `--contains=<Text>` keeps only events whose message contains the text (case-insensitive).
+  - `--since=<TimeSpan>` and `--until=<TimeSpan>` filter by relative offset from first timestamped event (for example `00:00:05`).
 
 - `clean`
   - Emits simplified, normalized text lines in `Category: Verbosity: Message` format.

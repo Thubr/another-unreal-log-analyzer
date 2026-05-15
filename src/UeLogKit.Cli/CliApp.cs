@@ -67,12 +67,38 @@ public static class CliApp
     {
         var category = args.FirstOrDefault(a => a.StartsWith("--category=", StringComparison.OrdinalIgnoreCase))?.Split('=')[1];
         var minLevel = args.FirstOrDefault(a => a.StartsWith("--min-level=", StringComparison.OrdinalIgnoreCase))?.Split('=')[1];
+        var contains = args.FirstOrDefault(a => a.StartsWith("--contains=", StringComparison.OrdinalIgnoreCase))?.Split('=')[1];
+        var since = ParseTimeSpanOption(args, "--since=");
+        var until = ParseTimeSpanOption(args, "--until=");
 
         var events = await ToListAsync(parser.ReadEventsAsync(input, new ParserOptions(), cancellationToken), cancellationToken);
         var filtered = events.Where(e => category is null || string.Equals(e.Category, category, StringComparison.OrdinalIgnoreCase));
         if (minLevel is not null)
         {
             filtered = filtered.Where(e => SeverityRank(e.Verbosity) >= SeverityRank(minLevel));
+        }
+        if (!string.IsNullOrWhiteSpace(contains))
+        {
+            filtered = filtered.Where(e => e.Message.Contains(contains, StringComparison.OrdinalIgnoreCase));
+        }
+        if (since is not null || until is not null)
+        {
+            var baseTime = events.Where(e => e.Timestamp is not null).Select(e => e.Timestamp!.Value).DefaultIfEmpty().Min();
+            if (baseTime != default)
+            {
+                filtered = filtered.Where(e =>
+                {
+                    if (e.Timestamp is null)
+                    {
+                        return false;
+                    }
+
+                    var offset = e.Timestamp.Value - baseTime;
+                    var matchesSince = since is null || offset >= since.Value;
+                    var matchesUntil = until is null || offset <= until.Value;
+                    return matchesSince && matchesUntil;
+                });
+            }
         }
 
         foreach (var e in filtered)
@@ -101,6 +127,17 @@ public static class CliApp
         "display" => 2,
         _ => 1
     };
+
+    private static TimeSpan? ParseTimeSpanOption(string[] args, string prefix)
+    {
+        var raw = args.FirstOrDefault(a => a.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))?.Split('=')[1];
+        if (raw is null)
+        {
+            return null;
+        }
+
+        return TimeSpan.TryParse(raw, out var parsed) ? parsed : null;
+    }
 
     private static async Task<List<LogEvent>> ToListAsync(IAsyncEnumerable<LogEvent> events, CancellationToken cancellationToken)
     {
