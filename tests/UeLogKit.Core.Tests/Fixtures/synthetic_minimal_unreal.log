@@ -1,0 +1,4 @@
+[2026.01.01-12.00.00:000][1]LogInit: Display: Synthetic startup complete
+[2026.01.01-12.00.00:250][2]LogNet: Warning: Synthetic packet loss spike detected
+  Synthetic detail: transient jitter only
+Malformed line with no separators

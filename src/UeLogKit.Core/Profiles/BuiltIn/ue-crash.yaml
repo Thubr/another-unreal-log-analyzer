@@ -1,0 +1,5 @@
+name: ue-crash
+extends: ue-default
+importantCategories:
+  - LogWindows
+  - LogCrashTracker

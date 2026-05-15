@@ -1,0 +1,9 @@
+name: ue-cook
+extends: ue-default
+importantCategories:
+  - LogCook
+  - LogShaderCompilers
+errorVerbosities:
+  - Warning
+  - Error
+  - Fatal

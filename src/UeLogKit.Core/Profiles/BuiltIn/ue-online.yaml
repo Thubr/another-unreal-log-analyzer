@@ -1,0 +1,9 @@
+name: ue-online
+extends: ue-default
+importantCategories:
+  - LogOnline
+  - LogNet
+errorVerbosities:
+  - Warning
+  - Error
+  - Fatal
