@@ -19,7 +19,25 @@ public static class ParserContractTestHarness
 
         for (var i = 0; i < fixture.ExpectedEvents.Count; i++)
         {
-            Assert.Equal(fixture.ExpectedEvents[i], actual[i]);
+            AssertEventsEqual(fixture.ExpectedEvents[i], actual[i]);
         }
+    }
+
+    private static void AssertEventsEqual(LogEvent expected, LogEvent actual)
+    {
+        Assert.Equal(expected.SchemaVersion, actual.SchemaVersion);
+        Assert.Equal(expected.SourceId, actual.SourceId);
+        Assert.Equal(expected.SourcePath, actual.SourcePath);
+        Assert.Equal(expected.LineNumber, actual.LineNumber);
+        Assert.Equal(expected.Timestamp, actual.Timestamp);
+        Assert.Equal(expected.RelativeTime, actual.RelativeTime);
+        Assert.Equal(expected.Frame, actual.Frame);
+        Assert.Equal(expected.Category, actual.Category);
+        Assert.Equal(expected.Verbosity, actual.Verbosity);
+        Assert.Equal(expected.Message, actual.Message);
+        Assert.Equal(expected.RawTextHash, actual.RawTextHash);
+
+        Assert.Equal(expected.ContinuationLines, actual.ContinuationLines);
+        Assert.Equal(expected.Fields.OrderBy(kv => kv.Key), actual.Fields.OrderBy(kv => kv.Key));
     }
 }
