@@ -1,0 +1,2 @@
+[2x] LogNet: Warning: Polling state
+[2x] LogOnline: Warning: Session=<session_id> Ticket=<ticket_id>
