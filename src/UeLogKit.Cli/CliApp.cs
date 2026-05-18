@@ -1,4 +1,5 @@
 using UeLogKit.Core;
+using UeLogKit.Core.Normalization;
 using UeLogKit.Core.Parser;
 
 namespace UeLogKit.Cli;
@@ -111,9 +112,11 @@ public static class CliApp
 
     private static async Task<int> RunCleanAsync(ILogEventSource parser, LogInput input, TextWriter output, CancellationToken cancellationToken)
     {
+        var normalizer = new LogEventNormalizer();
         await foreach (var e in parser.ReadEventsAsync(input, new ParserOptions(), cancellationToken))
         {
-            await output.WriteLineAsync($"{e.Category}: {e.Verbosity}: {e.Message}");
+            var normalized = normalizer.Normalize(e);
+            await output.WriteLineAsync($"{normalized.Category}: {normalized.Verbosity}: {normalized.Message}");
         }
 
         return 0;

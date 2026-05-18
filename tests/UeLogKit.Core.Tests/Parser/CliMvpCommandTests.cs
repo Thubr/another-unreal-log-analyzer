@@ -87,6 +87,25 @@ public sealed class CliMvpCommandTests
         Assert.Contains("LogInit: Display:", stdout.ToString());
     }
 
+    [Fact]
+    public async Task Clean_outputs_normalized_identifier_placeholders()
+    {
+        var path = Path.GetTempFileName();
+        await File.WriteAllTextAsync(path, "LogOnline: Warning: Event=Session.Join Session=Session-ABC123 Ticket=\"Ticket-98765\" UserId=User-42\n");
+        var stdout = new StringWriter();
+
+        var code = await CliApp.RunAsync(["clean", path], stdout, new StringWriter(), default);
+
+        Assert.Equal(0, code);
+        var text = stdout.ToString();
+        Assert.Contains("Session=<session_id>", text);
+        Assert.Contains("Ticket=\"<ticket_id>\"", text);
+        Assert.Contains("UserId=<user_id>", text);
+        Assert.DoesNotContain("Session-ABC123", text);
+        Assert.DoesNotContain("Ticket-98765", text);
+        Assert.DoesNotContain("User-42", text);
+    }
+
     private static string WriteSyntheticLog()
     {
         var path = Path.GetTempFileName();
