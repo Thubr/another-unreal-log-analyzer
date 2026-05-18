@@ -19,6 +19,54 @@ public sealed class CliMvpCommandTests
     }
 
     [Fact]
+    public async Task Parse_json_normalize_redacts_identifier_values_when_requested()
+    {
+        var path = WriteSyntheticIdentifierLog();
+        var stdout = new StringWriter();
+
+        var code = await CliApp.RunAsync(["parse", path, "--format=json", "--normalize"], stdout, new StringWriter(), default);
+
+        Assert.Equal(0, code);
+        var text = stdout.ToString();
+        Assert.Contains("Session=<session_id>", text);
+        Assert.Contains("\"Session\": \"<session_id>\"", text);
+        Assert.Contains("\"Ticket\": \"<ticket_id>\"", text);
+        Assert.DoesNotContain("Session-ABC123", text);
+        Assert.DoesNotContain("Ticket-98765", text);
+    }
+
+    [Fact]
+    public async Task Parse_ndjson_normalize_redacts_identifier_values_when_requested()
+    {
+        var path = WriteSyntheticIdentifierLog();
+        var stdout = new StringWriter();
+
+        var code = await CliApp.RunAsync(["parse", path, "--format=ndjson", "--normalize"], stdout, new StringWriter(), default);
+
+        Assert.Equal(0, code);
+        var text = stdout.ToString();
+        Assert.Contains("Session=<session_id>", text);
+        Assert.Contains("\"Session\":\"<session_id>\"", text);
+        Assert.Contains("\"Ticket\":\"<ticket_id>\"", text);
+        Assert.DoesNotContain("Session-ABC123", text);
+        Assert.DoesNotContain("Ticket-98765", text);
+    }
+
+    [Fact]
+    public async Task Parse_without_normalize_preserves_observed_identifier_values()
+    {
+        var path = WriteSyntheticIdentifierLog();
+        var stdout = new StringWriter();
+
+        var code = await CliApp.RunAsync(["parse", path, "--format=json"], stdout, new StringWriter(), default);
+
+        Assert.Equal(0, code);
+        var text = stdout.ToString();
+        Assert.Contains("Session-ABC123", text);
+        Assert.Contains("Ticket-98765", text);
+    }
+
+    [Fact]
     public async Task Summarize_reports_warning_and_error_counts()
     {
         var path = WriteSyntheticLog();
@@ -115,6 +163,13 @@ public sealed class CliMvpCommandTests
             .AppendLine("LogOnline: Error: Join failed")
             .ToString();
         File.WriteAllText(path, content);
+        return path;
+    }
+
+    private static string WriteSyntheticIdentifierLog()
+    {
+        var path = Path.GetTempFileName();
+        File.WriteAllText(path, "LogOnline: Warning: Event=Session.Join Session=Session-ABC123 Ticket=Ticket-98765\n");
         return path;
     }
 }

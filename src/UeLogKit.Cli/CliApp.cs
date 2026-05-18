@@ -38,16 +38,22 @@ public static class CliApp
     private static async Task<int> RunParseAsync(ILogEventSource parser, LogInput input, string[] args, TextWriter output, CancellationToken cancellationToken)
     {
         var format = args.FirstOrDefault(a => a.StartsWith("--format=", StringComparison.OrdinalIgnoreCase))?.Split('=')[1] ?? "json";
+        var normalize = args.Any(a => string.Equals(a, "--normalize", StringComparison.OrdinalIgnoreCase));
         var writer = new LogEventJsonWriter();
+        var events = parser.ReadEventsAsync(input, new ParserOptions(), cancellationToken);
+        if (normalize)
+        {
+            events = new LogEventNormalizer().ProcessAsync(events, cancellationToken);
+        }
 
         if (string.Equals(format, "ndjson", StringComparison.OrdinalIgnoreCase))
         {
-            await writer.WriteNdjsonAsync(parser.ReadEventsAsync(input, new ParserOptions(), cancellationToken), output, cancellationToken);
+            await writer.WriteNdjsonAsync(events, output, cancellationToken);
             return 0;
         }
 
-        var events = await ToListAsync(parser.ReadEventsAsync(input, new ParserOptions(), cancellationToken), cancellationToken);
-        await writer.WriteJsonArrayAsync(events, output, cancellationToken);
+        var eventList = await ToListAsync(events, cancellationToken);
+        await writer.WriteJsonArrayAsync(eventList, output, cancellationToken);
         await output.WriteLineAsync();
         return 0;
     }

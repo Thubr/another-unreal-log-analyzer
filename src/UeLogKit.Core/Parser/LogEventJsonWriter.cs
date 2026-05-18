@@ -1,10 +1,20 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 
 namespace UeLogKit.Core.Parser;
 
 public sealed class LogEventJsonWriter : ILogEventWriter
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        WriteIndented = true
+    };
+
+    private static readonly JsonSerializerOptions NdjsonOptions = new()
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
 
     public async Task WriteJsonArrayAsync(IReadOnlyList<LogEvent> events, TextWriter writer, CancellationToken cancellationToken = default)
     {
@@ -16,7 +26,7 @@ public sealed class LogEventJsonWriter : ILogEventWriter
     {
         await foreach (var e in events.WithCancellation(cancellationToken))
         {
-            var line = JsonSerializer.Serialize(e);
+            var line = JsonSerializer.Serialize(e, NdjsonOptions);
             await writer.WriteLineAsync(line.AsMemory(), cancellationToken);
         }
     }
