@@ -7,9 +7,9 @@ aUELA - Another Unreal Engine Log Analyzer is a simple tool aiming to make Unrea
 The repository now includes a minimal CLI project at `src/UeLogKit.Cli` with these commands:
 
 ```bash
-uelog parse <logPath> [--format=json|ndjson]
+uelog parse <logPath> [--format=json|ndjson] [--normalize]
 uelog summarize <logPath>
-uelog filter <logPath> [--category=<Category>] [--min-level=<Level>]
+uelog filter <logPath> [--category=<Category>] [--min-level=<Level>] [--normalize]
 uelog clean <logPath>
 ```
 
@@ -19,6 +19,7 @@ uelog clean <logPath>
   - Parses a log file through the current default parser and writes structured events.
   - `--format=json` (default) writes a JSON array.
   - `--format=ndjson` writes one JSON event per line.
+  - `--normalize` redacts supported identifier-like values in structured output.
 
 - `summarize`
   - Prints a minimal summary including:
@@ -32,6 +33,7 @@ uelog clean <logPath>
   - `--min-level=<Level>` keeps events at or above the provided severity threshold.
   - `--contains=<Text>` keeps only events whose message contains the text (case-insensitive).
   - `--since=<TimeSpan>` and `--until=<TimeSpan>` filter by relative offset from first timestamped event (for example `00:00:05`).
+  - `--normalize` redacts supported identifier-like values in filtered output.
 
 - `clean`
   - Emits simplified, normalized text lines in `Category: Verbosity: Message` format.
@@ -41,8 +43,10 @@ uelog clean <logPath>
 ```bash
 uelog parse Saved/Logs/Game.log --format=json
 uelog parse Saved/Logs/Game.log --format=ndjson
+uelog parse Saved/Logs/Game.log --format=json --normalize
 uelog summarize Saved/Logs/Game.log
 uelog filter Saved/Logs/Game.log --category=LogNet --min-level=Warning
+uelog filter Saved/Logs/Game.log --category=LogOnline --normalize
 uelog clean Saved/Logs/Game.log
 ```
 

@@ -14,8 +14,26 @@ public sealed record ParserContractFixture(
         using var stream = File.OpenRead(fixturePath);
         var fixture = JsonSerializer.Deserialize<ParserContractFixture>(stream, SerializerOptions);
 
-        return fixture
+        fixture = fixture
             ?? throw new InvalidOperationException($"Failed to deserialize fixture at '{fixturePath}'.");
+
+        if (!Path.IsPathRooted(fixture.Input.SourcePath))
+        {
+            var fixtureDirectory = Path.GetDirectoryName(fixturePath)
+                ?? throw new InvalidOperationException($"Failed to resolve fixture directory for '{fixturePath}'.");
+            var resolvedInput = fixture.Input with { SourcePath = Path.Combine(fixtureDirectory, fixture.Input.SourcePath) };
+            var resolvedExpected = fixture.ExpectedEvents
+                .Select(e => e with { SourcePath = resolvedInput.SourcePath })
+                .ToArray();
+
+            fixture = fixture with
+            {
+                Input = resolvedInput,
+                ExpectedEvents = resolvedExpected
+            };
+        }
+
+        return fixture;
     }
 
     private static readonly JsonSerializerOptions SerializerOptions = new()

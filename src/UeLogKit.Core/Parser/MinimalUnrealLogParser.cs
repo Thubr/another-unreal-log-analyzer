@@ -11,7 +11,7 @@ namespace UeLogKit.Core.Parser;
 /// 2) Category: Verbosity: Message
 /// 3) Plain message fallback.
 /// Intentionally out-of-scope for this minimal implementation:
-/// multi-line stack traces, locale-specific timestamps, and advanced token extraction.
+/// locale-specific timestamps and advanced token extraction.
 /// </summary>
 public sealed class MinimalUnrealLogParser : ILogEventSource
 {
@@ -85,6 +85,7 @@ public sealed class MinimalUnrealLogParser : ILogEventSource
         }
 
         var schemaVersion = options.StrictSchemaVersion ? options.ExpectedSchemaVersion : LogEventSchemaVersion.V1;
+        var fields = ExtractFields(message);
         var hash = options.CaptureRawTextHash ? ComputeSha256(rawLine) : string.Empty;
 
         return new LogEvent(
@@ -99,7 +100,7 @@ public sealed class MinimalUnrealLogParser : ILogEventSource
             Verbosity: verbosity,
             Message: message,
             ContinuationLines: Array.Empty<string>(),
-            Fields: new Dictionary<string, string>(),
+            Fields: fields,
             RawTextHash: hash);
     }
 
@@ -165,6 +166,71 @@ public sealed class MinimalUnrealLogParser : ILogEventSource
         verbosity = line[(firstColon + 1)..secondColon].Trim();
         message = line[(secondColon + 1)..].Trim();
         return category.Length > 0 && verbosity.Length > 0;
+    }
+
+    private static IReadOnlyDictionary<string, string> ExtractFields(string message)
+    {
+        var fields = new Dictionary<string, string>(StringComparer.Ordinal);
+        var index = 0;
+        while (index < message.Length)
+        {
+            while (index < message.Length && char.IsWhiteSpace(message[index]))
+            {
+                index++;
+            }
+
+            var tokenStart = index;
+            var separator = message.IndexOf('=', tokenStart);
+            if (separator < 0)
+            {
+                break;
+            }
+
+            if (separator == tokenStart || message[tokenStart..separator].Any(char.IsWhiteSpace))
+            {
+                index = NextTokenIndex(message, tokenStart);
+                continue;
+            }
+
+            var key = message[tokenStart..separator];
+            var valueStart = separator + 1;
+            if (valueStart >= message.Length)
+            {
+                index = valueStart;
+                continue;
+            }
+
+            string value;
+            if (message[valueStart] == '"')
+            {
+                valueStart++;
+                var valueEnd = message.IndexOf('"', valueStart);
+                valueEnd = valueEnd < 0 ? message.Length : valueEnd;
+                value = message[valueStart..valueEnd];
+                index = valueEnd < message.Length ? valueEnd + 1 : valueEnd;
+            }
+            else
+            {
+                var valueEnd = NextTokenIndex(message, valueStart);
+                value = message[valueStart..valueEnd].TrimEnd(',', ';');
+                index = valueEnd;
+            }
+
+            fields[key] = value;
+        }
+
+        return fields;
+    }
+
+    private static int NextTokenIndex(string message, int start)
+    {
+        var index = start;
+        while (index < message.Length && !char.IsWhiteSpace(message[index]))
+        {
+            index++;
+        }
+
+        return index;
     }
 
     private static string ComputeSha256(string text)

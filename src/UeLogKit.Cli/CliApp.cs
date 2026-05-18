@@ -1,4 +1,5 @@
 using UeLogKit.Core;
+using UeLogKit.Core.Normalization;
 using UeLogKit.Core.Parser;
 
 namespace UeLogKit.Cli;
@@ -37,16 +38,22 @@ public static class CliApp
     private static async Task<int> RunParseAsync(ILogEventSource parser, LogInput input, string[] args, TextWriter output, CancellationToken cancellationToken)
     {
         var format = args.FirstOrDefault(a => a.StartsWith("--format=", StringComparison.OrdinalIgnoreCase))?.Split('=')[1] ?? "json";
+        var normalize = args.Any(a => string.Equals(a, "--normalize", StringComparison.OrdinalIgnoreCase));
         var writer = new LogEventJsonWriter();
+        var events = parser.ReadEventsAsync(input, new ParserOptions(), cancellationToken);
+        if (normalize)
+        {
+            events = new LogEventNormalizer().ProcessAsync(events, cancellationToken);
+        }
 
         if (string.Equals(format, "ndjson", StringComparison.OrdinalIgnoreCase))
         {
-            await writer.WriteNdjsonAsync(parser.ReadEventsAsync(input, new ParserOptions(), cancellationToken), output, cancellationToken);
+            await writer.WriteNdjsonAsync(events, output, cancellationToken);
             return 0;
         }
 
-        var events = await ToListAsync(parser.ReadEventsAsync(input, new ParserOptions(), cancellationToken), cancellationToken);
-        await writer.WriteJsonArrayAsync(events, output, cancellationToken);
+        var eventList = await ToListAsync(events, cancellationToken);
+        await writer.WriteJsonArrayAsync(eventList, output, cancellationToken);
         await output.WriteLineAsync();
         return 0;
     }
@@ -70,6 +77,7 @@ public static class CliApp
         var contains = args.FirstOrDefault(a => a.StartsWith("--contains=", StringComparison.OrdinalIgnoreCase))?.Split('=')[1];
         var since = ParseTimeSpanOption(args, "--since=");
         var until = ParseTimeSpanOption(args, "--until=");
+        var normalize = args.Any(a => string.Equals(a, "--normalize", StringComparison.OrdinalIgnoreCase));
 
         var events = await ToListAsync(parser.ReadEventsAsync(input, new ParserOptions(), cancellationToken), cancellationToken);
         var filtered = events.Where(e => category is null || string.Equals(e.Category, category, StringComparison.OrdinalIgnoreCase));
@@ -101,9 +109,11 @@ public static class CliApp
             }
         }
 
+        var normalizer = normalize ? new LogEventNormalizer() : null;
         foreach (var e in filtered)
         {
-            await output.WriteLineAsync($"{e.LineNumber}: [{e.Category}] {e.Verbosity}: {e.Message}");
+            var outputEvent = normalizer is null ? e : normalizer.Normalize(e);
+            await output.WriteLineAsync($"{outputEvent.LineNumber}: [{outputEvent.Category}] {outputEvent.Verbosity}: {outputEvent.Message}");
         }
 
         return 0;
@@ -111,9 +121,11 @@ public static class CliApp
 
     private static async Task<int> RunCleanAsync(ILogEventSource parser, LogInput input, TextWriter output, CancellationToken cancellationToken)
     {
+        var normalizer = new LogEventNormalizer();
         await foreach (var e in parser.ReadEventsAsync(input, new ParserOptions(), cancellationToken))
         {
-            await output.WriteLineAsync($"{e.Category}: {e.Verbosity}: {e.Message}");
+            var normalized = normalizer.Normalize(e);
+            await output.WriteLineAsync($"{normalized.Category}: {normalized.Verbosity}: {normalized.Message}");
         }
 
         return 0;

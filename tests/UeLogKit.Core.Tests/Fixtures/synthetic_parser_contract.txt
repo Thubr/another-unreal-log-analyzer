@@ -1,0 +1,7 @@
+[2026.01.01-12.00.00:000][10]LogOnline: Warning: Event=Session.Join Result=Failed Session=<session_id> User=<user_id>
+  {
+    "reason": "Synthetic timeout",
+    "ticket": "<ticket_id>"
+  }
+LogNet: Error: NetworkFailure: PendingConnectionFailure Reason=SyntheticTimeout
+Malformed synthetic line without separators

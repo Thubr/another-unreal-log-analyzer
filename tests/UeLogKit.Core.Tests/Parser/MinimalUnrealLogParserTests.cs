@@ -54,6 +54,84 @@ public sealed class MinimalUnrealLogParserTests
         Assert.Equal(3, events.Count);
     }
 
+    [Fact]
+    public async Task Extracts_basic_key_value_fields_from_message()
+    {
+        var file = Path.GetTempFileName();
+        await File.WriteAllTextAsync(
+            file,
+            "[2026.01.01-12.00.00:000][42]LogOnline: Warning: Event=Session.Join Result=Failed Session=<session_id> User=<user_id>\n");
+
+        var parser = new MinimalUnrealLogParser();
+        var events = await ReadAllAsync(parser, new LogInput("fixture:fields", file), new ParserOptions());
+
+        var logEvent = Assert.Single(events);
+        Assert.Equal(42, logEvent.Frame);
+        Assert.Equal("Session.Join", logEvent.Fields["Event"]);
+        Assert.Equal("Failed", logEvent.Fields["Result"]);
+        Assert.Equal("<session_id>", logEvent.Fields["Session"]);
+        Assert.Equal("<user_id>", logEvent.Fields["User"]);
+    }
+
+    [Fact]
+    public async Task Extracts_quoted_key_value_fields_without_changing_message()
+    {
+        var file = Path.GetTempFileName();
+        await File.WriteAllTextAsync(
+            file,
+            "LogOnline: Warning: Event=Session.Join Reason=\"Synthetic timeout\" Session=<session_id>\n");
+
+        var parser = new MinimalUnrealLogParser();
+        var events = await ReadAllAsync(parser, new LogInput("fixture:quoted-fields", file), new ParserOptions());
+
+        var logEvent = Assert.Single(events);
+        Assert.Equal("Event=Session.Join Reason=\"Synthetic timeout\" Session=<session_id>", logEvent.Message);
+        Assert.Equal("Session.Join", logEvent.Fields["Event"]);
+        Assert.Equal("Synthetic timeout", logEvent.Fields["Reason"]);
+        Assert.Equal("<session_id>", logEvent.Fields["Session"]);
+    }
+
+    [Fact]
+    public async Task Attaches_indented_json_like_payload_as_continuation()
+    {
+        var file = Path.GetTempFileName();
+        await File.WriteAllTextAsync(
+            file,
+            "LogHttp: Warning: Synthetic request failed\n" +
+            "  {\n" +
+            "    \"status\": \"timeout\",\n" +
+            "    \"requestId\": \"<ticket_id>\"\n" +
+            "  }\n" +
+            "LogInit: Display: Continued after payload\n");
+
+        var parser = new MinimalUnrealLogParser();
+        var events = await ReadAllAsync(parser, new LogInput("fixture:json-continuation", file), new ParserOptions());
+
+        Assert.Equal(2, events.Count);
+        Assert.Equal(4, events[0].ContinuationLines.Count);
+        Assert.Contains("\"requestId\": \"<ticket_id>\"", events[0].ContinuationLines);
+        Assert.Equal("LogInit", events[1].Category);
+    }
+
+    [Fact]
+    public async Task Keeps_continuation_lines_empty_when_option_is_disabled()
+    {
+        var file = Path.GetTempFileName();
+        await File.WriteAllTextAsync(
+            file,
+            "LogNet: Error: Synthetic disconnect\n" +
+            "  Synthetic callstack line\n");
+
+        var parser = new MinimalUnrealLogParser();
+        var events = await ReadAllAsync(
+            parser,
+            new LogInput("fixture:no-continuation", file),
+            new ParserOptions(IncludeContinuationLines: false));
+
+        var logEvent = Assert.Single(events);
+        Assert.Empty(logEvent.ContinuationLines);
+    }
+
     private static async Task<List<LogEvent>> ReadAllAsync(ILogEventSource parser, LogInput input, ParserOptions options)
     {
         var list = new List<LogEvent>();
