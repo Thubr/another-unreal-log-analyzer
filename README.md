@@ -9,7 +9,7 @@ The repository now includes a minimal CLI project at `src/UeLogKit.Cli` with the
 ```bash
 uelog parse <logPath> [--format=json|ndjson] [--normalize]
 uelog summarize <logPath>
-uelog filter <logPath> [--category=<Category>] [--min-level=<Level>]
+uelog filter <logPath> [--category=<Category>] [--min-level=<Level>] [--normalize]
 uelog clean <logPath>
 ```
 
@@ -33,6 +33,7 @@ uelog clean <logPath>
   - `--min-level=<Level>` keeps events at or above the provided severity threshold.
   - `--contains=<Text>` keeps only events whose message contains the text (case-insensitive).
   - `--since=<TimeSpan>` and `--until=<TimeSpan>` filter by relative offset from first timestamped event (for example `00:00:05`).
+  - `--normalize` redacts supported identifier-like values in filtered output.
 
 - `clean`
   - Emits simplified, normalized text lines in `Category: Verbosity: Message` format.
@@ -45,6 +46,7 @@ uelog parse Saved/Logs/Game.log --format=ndjson
 uelog parse Saved/Logs/Game.log --format=json --normalize
 uelog summarize Saved/Logs/Game.log
 uelog filter Saved/Logs/Game.log --category=LogNet --min-level=Warning
+uelog filter Saved/Logs/Game.log --category=LogOnline --normalize
 uelog clean Saved/Logs/Game.log
 ```
 

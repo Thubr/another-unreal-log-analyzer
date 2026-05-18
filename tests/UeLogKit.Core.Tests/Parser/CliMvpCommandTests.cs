@@ -124,6 +124,36 @@ public sealed class CliMvpCommandTests
     }
 
     [Fact]
+    public async Task Filter_normalize_redacts_identifier_values_when_requested()
+    {
+        var path = WriteSyntheticIdentifierLog();
+        var stdout = new StringWriter();
+
+        var code = await CliApp.RunAsync(["filter", path, "--category=LogOnline", "--normalize"], stdout, new StringWriter(), default);
+
+        Assert.Equal(0, code);
+        var text = stdout.ToString();
+        Assert.Contains("Session=<session_id>", text);
+        Assert.Contains("Ticket=<ticket_id>", text);
+        Assert.DoesNotContain("Session-ABC123", text);
+        Assert.DoesNotContain("Ticket-98765", text);
+    }
+
+    [Fact]
+    public async Task Filter_without_normalize_preserves_observed_identifier_values()
+    {
+        var path = WriteSyntheticIdentifierLog();
+        var stdout = new StringWriter();
+
+        var code = await CliApp.RunAsync(["filter", path, "--category=LogOnline"], stdout, new StringWriter(), default);
+
+        Assert.Equal(0, code);
+        var text = stdout.ToString();
+        Assert.Contains("Session-ABC123", text);
+        Assert.Contains("Ticket-98765", text);
+    }
+
+    [Fact]
     public async Task Clean_outputs_simplified_lines()
     {
         var path = WriteSyntheticLog();

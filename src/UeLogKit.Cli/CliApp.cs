@@ -77,6 +77,7 @@ public static class CliApp
         var contains = args.FirstOrDefault(a => a.StartsWith("--contains=", StringComparison.OrdinalIgnoreCase))?.Split('=')[1];
         var since = ParseTimeSpanOption(args, "--since=");
         var until = ParseTimeSpanOption(args, "--until=");
+        var normalize = args.Any(a => string.Equals(a, "--normalize", StringComparison.OrdinalIgnoreCase));
 
         var events = await ToListAsync(parser.ReadEventsAsync(input, new ParserOptions(), cancellationToken), cancellationToken);
         var filtered = events.Where(e => category is null || string.Equals(e.Category, category, StringComparison.OrdinalIgnoreCase));
@@ -108,9 +109,11 @@ public static class CliApp
             }
         }
 
+        var normalizer = normalize ? new LogEventNormalizer() : null;
         foreach (var e in filtered)
         {
-            await output.WriteLineAsync($"{e.LineNumber}: [{e.Category}] {e.Verbosity}: {e.Message}");
+            var outputEvent = normalizer is null ? e : normalizer.Normalize(e);
+            await output.WriteLineAsync($"{outputEvent.LineNumber}: [{outputEvent.Category}] {outputEvent.Verbosity}: {outputEvent.Message}");
         }
 
         return 0;
