@@ -82,6 +82,18 @@ public sealed class CliMvpCommandTests
     }
 
     [Fact]
+    public async Task Summarize_profile_reports_important_event_count()
+    {
+        var path = WriteSyntheticProfileLog();
+        var stdout = new StringWriter();
+
+        var code = await CliApp.RunAsync(["summarize", path, "--profile=ue-default"], stdout, new StringWriter(), default);
+
+        Assert.Equal(0, code);
+        Assert.Contains("Important events: 2", stdout.ToString());
+    }
+
+    [Fact]
     public async Task Filter_applies_category_and_min_level()
     {
         var path = WriteSyntheticLog();
@@ -154,6 +166,20 @@ public sealed class CliMvpCommandTests
     }
 
     [Fact]
+    public async Task Filter_profile_excludes_profile_noise_categories()
+    {
+        var path = WriteSyntheticProfileLog();
+        var stdout = new StringWriter();
+
+        var code = await CliApp.RunAsync(["filter", path, "--profile=ue-default"], stdout, new StringWriter(), default);
+
+        Assert.Equal(0, code);
+        var text = stdout.ToString();
+        Assert.Contains("LogOnline", text);
+        Assert.DoesNotContain("LogSlate", text);
+    }
+
+    [Fact]
     public async Task Clean_outputs_simplified_lines()
     {
         var path = WriteSyntheticLog();
@@ -184,6 +210,75 @@ public sealed class CliMvpCommandTests
         Assert.DoesNotContain("User-42", text);
     }
 
+    [Fact]
+    public async Task Clean_exact_dedupe_collapses_identical_lines()
+    {
+        var path = WriteSyntheticDedupeLog();
+        var stdout = new StringWriter();
+
+        var code = await CliApp.RunAsync(["clean", path, "--dedupe=exact"], stdout, new StringWriter(), default);
+
+        Assert.Equal(0, code);
+        var lines = stdout.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        Assert.Contains("[2x] LogNet: Warning: Polling state", lines);
+        Assert.Equal(2, lines.Count(line => line == "LogOnline: Warning: Session=<session_id> Ticket=<ticket_id>"));
+    }
+
+    [Fact]
+    public async Task Clean_normalized_dedupe_collapses_identifier_variants()
+    {
+        var path = WriteSyntheticDedupeLog();
+        var stdout = new StringWriter();
+
+        var code = await CliApp.RunAsync(["clean", path, "--dedupe=normalized"], stdout, new StringWriter(), default);
+
+        Assert.Equal(0, code);
+        var lines = stdout.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        Assert.Contains("[2x] LogNet: Warning: Polling state", lines);
+        Assert.Contains("[2x] LogOnline: Warning: Session=<session_id> Ticket=<ticket_id>", lines);
+    }
+
+    [Fact]
+    public async Task Clean_normalized_dedupe_matches_golden_output()
+    {
+        var path = WriteSyntheticDedupeLog();
+        var stdout = new StringWriter();
+        var expectedPath = Path.Combine(AppContext.BaseDirectory, "Fixtures", "expected_clean_normalized_dedupe.txt");
+
+        var code = await CliApp.RunAsync(["clean", path, "--dedupe=normalized"], stdout, new StringWriter(), default);
+
+        Assert.Equal(0, code);
+        Assert.Equal(
+            File.ReadAllText(expectedPath).ReplaceLineEndings().TrimEnd(),
+            stdout.ToString().ReplaceLineEndings().TrimEnd());
+    }
+
+    [Fact]
+    public async Task Clean_rejects_invalid_dedupe_mode()
+    {
+        var path = WriteSyntheticLog();
+        var stdout = new StringWriter();
+        var stderr = new StringWriter();
+
+        var code = await CliApp.RunAsync(["clean", path, "--dedupe=surprise"], stdout, stderr, default);
+
+        Assert.Equal(1, code);
+        Assert.Contains("Invalid dedupe mode 'surprise'.", stderr.ToString());
+    }
+
+    [Fact]
+    public async Task Clean_rejects_numeric_dedupe_mode()
+    {
+        var path = WriteSyntheticLog();
+        var stdout = new StringWriter();
+        var stderr = new StringWriter();
+
+        var code = await CliApp.RunAsync(["clean", path, "--dedupe=42"], stdout, stderr, default);
+
+        Assert.Equal(1, code);
+        Assert.Contains("Invalid dedupe mode '42'.", stderr.ToString());
+    }
+
     private static string WriteSyntheticLog()
     {
         var path = Path.GetTempFileName();
@@ -200,6 +295,31 @@ public sealed class CliMvpCommandTests
     {
         var path = Path.GetTempFileName();
         File.WriteAllText(path, "LogOnline: Warning: Event=Session.Join Session=Session-ABC123 Ticket=Ticket-98765\n");
+        return path;
+    }
+
+    private static string WriteSyntheticDedupeLog()
+    {
+        var path = Path.GetTempFileName();
+        var content = new StringBuilder()
+            .AppendLine("LogNet: Warning: Polling state")
+            .AppendLine("LogNet: Warning: Polling state")
+            .AppendLine("LogOnline: Warning: Session=Session-ABC123 Ticket=Ticket-1")
+            .AppendLine("LogOnline: Warning: Session=Session-XYZ789 Ticket=Ticket-2")
+            .ToString();
+        File.WriteAllText(path, content);
+        return path;
+    }
+
+    private static string WriteSyntheticProfileLog()
+    {
+        var path = Path.GetTempFileName();
+        var content = new StringBuilder()
+            .AppendLine("LogSlate: Display: Synthetic UI noise")
+            .AppendLine("LogOnline: Warning: JoinSession failed")
+            .AppendLine("LogNet: Warning: NetworkFailure: PendingConnectionFailure")
+            .ToString();
+        File.WriteAllText(path, content);
         return path;
     }
 }
