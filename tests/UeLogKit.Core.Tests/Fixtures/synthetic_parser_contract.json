@@ -1,0 +1,72 @@
+{
+  "name": "synthetic-parser-contract",
+  "input": {
+    "sourceId": "fixture:synthetic-parser-contract",
+    "sourcePath": "synthetic_parser_contract.txt"
+  },
+  "options": {
+    "includeContinuationLines": true,
+    "captureRawTextHash": false,
+    "strictSchemaVersion": true,
+    "expectedSchemaVersion": "uelog.logevent.v1"
+  },
+  "expectedEvents": [
+    {
+      "schemaVersion": "uelog.logevent.v1",
+      "sourceId": "fixture:synthetic-parser-contract",
+      "sourcePath": "synthetic_parser_contract.txt",
+      "lineNumber": 1,
+      "timestamp": "2026-01-01T12:00:00+00:00",
+      "relativeTime": null,
+      "frame": 10,
+      "category": "LogOnline",
+      "verbosity": "Warning",
+      "message": "Event=Session.Join Result=Failed Session=<session_id> User=<user_id>",
+      "continuationLines": [
+        "{",
+        "\"reason\": \"Synthetic timeout\",",
+        "\"ticket\": \"<ticket_id>\"",
+        "}"
+      ],
+      "fields": {
+        "Event": "Session.Join",
+        "Result": "Failed",
+        "Session": "<session_id>",
+        "User": "<user_id>"
+      },
+      "rawTextHash": ""
+    },
+    {
+      "schemaVersion": "uelog.logevent.v1",
+      "sourceId": "fixture:synthetic-parser-contract",
+      "sourcePath": "synthetic_parser_contract.txt",
+      "lineNumber": 6,
+      "timestamp": null,
+      "relativeTime": null,
+      "frame": null,
+      "category": "LogNet",
+      "verbosity": "Error",
+      "message": "NetworkFailure: PendingConnectionFailure Reason=SyntheticTimeout",
+      "continuationLines": [],
+      "fields": {
+        "Reason": "SyntheticTimeout"
+      },
+      "rawTextHash": ""
+    },
+    {
+      "schemaVersion": "uelog.logevent.v1",
+      "sourceId": "fixture:synthetic-parser-contract",
+      "sourcePath": "synthetic_parser_contract.txt",
+      "lineNumber": 7,
+      "timestamp": null,
+      "relativeTime": null,
+      "frame": null,
+      "category": "Unknown",
+      "verbosity": "Display",
+      "message": "Malformed synthetic line without separators",
+      "continuationLines": [],
+      "fields": {},
+      "rawTextHash": ""
+    }
+  ]
+}
