@@ -2,6 +2,28 @@
 
 aUELA - Another Unreal Engine Log Analyzer is a simple tool aiming to make Unreal logs more readable, filterable and sortable.
 
+## Build a local executable
+
+From the repository root, publish a ready-to-run Windows x64 executable:
+
+```powershell
+./build.ps1
+```
+
+The executable is written to:
+
+```text
+build/uelog/win-x64/uelog.exe
+```
+
+Run it directly:
+
+```powershell
+./build/uelog/win-x64/uelog.exe parse path/to/synthetic.log --format=json
+```
+
+The build output folder is local-only and is ignored by git.
+
 ## Usage (CLI MVP)
 
 The repository now includes a minimal CLI project at `src/UeLogKit.Cli` with these commands:
