@@ -31,6 +31,9 @@ coverage/
 reports/
 exports/
 
+# Local brainstorming companion artifacts
+.superpowers/
+
 # OS files
 .DS_Store
 Thumbs.db
