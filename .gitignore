@@ -3,6 +3,7 @@ bin/
 obj/
 out/
 artifacts/
+/build/
 
 # .NET user files
 *.user
@@ -29,6 +30,9 @@ coverage/
 .uelog-index/
 reports/
 exports/
+
+# Local brainstorming companion artifacts
+.superpowers/
 
 # OS files
 .DS_Store

@@ -1,8 +1,10 @@
 using UeLogKit.Core;
 using UeLogKit.Core.Dedupe;
+using UeLogKit.Cli.Inspect;
 using UeLogKit.Core.Normalization;
 using UeLogKit.Core.Parser;
 using UeLogKit.Core.Profiles;
+using UeLogKit.Core.Query;
 
 namespace UeLogKit.Cli;
 
@@ -12,7 +14,7 @@ public static class CliApp
     {
         if (args.Length < 2)
         {
-            await error.WriteLineAsync("Usage: uelog <parse|summarize|filter|clean> <logPath> [options]");
+            await error.WriteLineAsync("Usage: uelog <parse|summarize|filter|clean|categories|inspect> <logPath> [options]");
             return 1;
         }
 
@@ -27,6 +29,8 @@ public static class CliApp
             "summarize" => await RunSummarizeAsync(parser, input, args.Skip(2).ToArray(), output, error, cancellationToken),
             "filter" => await RunFilterAsync(parser, input, args.Skip(2).ToArray(), output, error, cancellationToken),
             "clean" => await RunCleanAsync(parser, input, args.Skip(2).ToArray(), output, error, cancellationToken),
+            "categories" => await RunCategoriesAsync(parser, input, args.Skip(2).ToArray(), output, error, cancellationToken),
+            "inspect" => await RunInspectAsync(parser, input, args.Skip(2).ToArray(), error, cancellationToken),
             _ => await UnknownCommandAsync(command, error)
         };
     }
@@ -68,12 +72,11 @@ public static class CliApp
         }
 
         var events = await ToListAsync(parser.ReadEventsAsync(input, new ParserOptions(), cancellationToken), cancellationToken);
-        var warnings = events.Count(e => string.Equals(e.Verbosity, "Warning", StringComparison.OrdinalIgnoreCase));
-        var errors = events.Count(e => string.Equals(e.Verbosity, "Error", StringComparison.OrdinalIgnoreCase) || string.Equals(e.Verbosity, "Fatal", StringComparison.OrdinalIgnoreCase));
+        var summary = LogQueryService.BuildFacetSummary(events);
 
-        await output.WriteLineAsync($"Total events: {events.Count}");
-        await output.WriteLineAsync($"Warnings: {warnings}");
-        await output.WriteLineAsync($"Errors: {errors}");
+        await output.WriteLineAsync($"Total events: {summary.TotalEvents}");
+        await output.WriteLineAsync($"Warnings: {summary.WarningCount}");
+        await output.WriteLineAsync($"Errors: {summary.ErrorCount}");
         if (profile is not null)
         {
             await output.WriteLineAsync($"Important events: {events.Count(e => IsImportant(e, profile))}");
@@ -84,11 +87,6 @@ public static class CliApp
 
     private static async Task<int> RunFilterAsync(ILogEventSource parser, LogInput input, string[] args, TextWriter output, TextWriter error, CancellationToken cancellationToken)
     {
-        var category = args.FirstOrDefault(a => a.StartsWith("--category=", StringComparison.OrdinalIgnoreCase))?.Split('=')[1];
-        var minLevel = args.FirstOrDefault(a => a.StartsWith("--min-level=", StringComparison.OrdinalIgnoreCase))?.Split('=')[1];
-        var contains = args.FirstOrDefault(a => a.StartsWith("--contains=", StringComparison.OrdinalIgnoreCase))?.Split('=')[1];
-        var since = ParseTimeSpanOption(args, "--since=");
-        var until = ParseTimeSpanOption(args, "--until=");
         var normalize = args.Any(a => string.Equals(a, "--normalize", StringComparison.OrdinalIgnoreCase));
         if (!TryLoadProfile(args, error, out var profile))
         {
@@ -96,38 +94,8 @@ public static class CliApp
         }
 
         var events = await ToListAsync(parser.ReadEventsAsync(input, new ParserOptions(), cancellationToken), cancellationToken);
-        var filtered = events.Where(e => category is null || string.Equals(e.Category, category, StringComparison.OrdinalIgnoreCase));
-        if (profile is not null)
-        {
-            filtered = filtered.Where(e => !ContainsIgnoreCase(profile.NoiseCategories, e.Category));
-        }
-        if (minLevel is not null)
-        {
-            filtered = filtered.Where(e => SeverityRank(e.Verbosity) >= SeverityRank(minLevel));
-        }
-        if (!string.IsNullOrWhiteSpace(contains))
-        {
-            filtered = filtered.Where(e => e.Message.Contains(contains, StringComparison.OrdinalIgnoreCase));
-        }
-        if (since is not null || until is not null)
-        {
-            var baseTime = events.Where(e => e.Timestamp is not null).Select(e => e.Timestamp!.Value).DefaultIfEmpty().Min();
-            if (baseTime != default)
-            {
-                filtered = filtered.Where(e =>
-                {
-                    if (e.Timestamp is null)
-                    {
-                        return false;
-                    }
-
-                    var offset = e.Timestamp.Value - baseTime;
-                    var matchesSince = since is null || offset >= since.Value;
-                    var matchesUntil = until is null || offset <= until.Value;
-                    return matchesSince && matchesUntil;
-                });
-            }
-        }
+        var query = BuildQuery(args, excludeProfileNoise: profile is not null);
+        var filtered = LogQueryService.Apply(events, query, profile);
 
         var normalizer = normalize ? new LogEventNormalizer() : null;
         foreach (var e in filtered)
@@ -136,6 +104,55 @@ public static class CliApp
             await output.WriteLineAsync($"{outputEvent.LineNumber}: [{outputEvent.Category}] {outputEvent.Verbosity}: {outputEvent.Message}");
         }
 
+        return 0;
+    }
+
+    private static async Task<int> RunCategoriesAsync(ILogEventSource parser, LogInput input, string[] args, TextWriter output, TextWriter error, CancellationToken cancellationToken)
+    {
+        if (!TryLoadProfile(args, error, out var profile))
+        {
+            return 1;
+        }
+
+        var format = args.FirstOrDefault(a => a.StartsWith("--format=", StringComparison.OrdinalIgnoreCase))?.Split('=')[1] ?? "text";
+        var events = await ToListAsync(parser.ReadEventsAsync(input, new ParserOptions(), cancellationToken), cancellationToken);
+        var facetEvents = profile is null
+            ? events
+            : LogQueryService.Apply(events, LogQuery.Empty with { ExcludeProfileNoise = true }, profile);
+        var summary = LogQueryService.BuildFacetSummary(facetEvents);
+
+        if (string.Equals(format, "json", StringComparison.OrdinalIgnoreCase))
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(
+                summary,
+                new System.Text.Json.JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+                    WriteIndented = true
+                });
+            await output.WriteAsync(json.AsMemory(), cancellationToken);
+            await output.WriteLineAsync();
+            return 0;
+        }
+
+        foreach (var count in summary.CategoryCounts)
+        {
+            await output.WriteLineAsync($"{count.Name}\t{count.Count}");
+        }
+
+        return 0;
+    }
+
+    private static async Task<int> RunInspectAsync(ILogEventSource parser, LogInput input, string[] args, TextWriter error, CancellationToken cancellationToken)
+    {
+        if (!TryLoadProfile(args, error, out var profile))
+        {
+            return 1;
+        }
+
+        var events = await ToListAsync(parser.ReadEventsAsync(input, new ParserOptions(), cancellationToken), cancellationToken);
+        var model = new InspectViewModel(input.SourcePath, events, profile);
+        new InspectTerminalUi().Run(model);
         return 0;
     }
 
@@ -159,15 +176,6 @@ public static class CliApp
         return 0;
     }
 
-    private static int SeverityRank(string verbosity) => verbosity.ToLowerInvariant() switch
-    {
-        "fatal" => 5,
-        "error" => 4,
-        "warning" => 3,
-        "display" => 2,
-        _ => 1
-    };
-
     private static TimeSpan? ParseTimeSpanOption(string[] args, string prefix)
     {
         var raw = args.FirstOrDefault(a => a.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))?.Split('=')[1];
@@ -177,6 +185,30 @@ public static class CliApp
         }
 
         return TimeSpan.TryParse(raw, out var parsed) ? parsed : null;
+    }
+
+    private static LogQuery BuildQuery(string[] args, bool excludeProfileNoise)
+    {
+        var category = args.FirstOrDefault(a => a.StartsWith("--category=", StringComparison.OrdinalIgnoreCase))?.Split('=')[1];
+        var excludedCategory = args.FirstOrDefault(a => a.StartsWith("--exclude-category=", StringComparison.OrdinalIgnoreCase))?.Split('=')[1];
+        var minLevel = args.FirstOrDefault(a => a.StartsWith("--min-level=", StringComparison.OrdinalIgnoreCase))?.Split('=')[1];
+        var contains = args.FirstOrDefault(a => a.StartsWith("--contains=", StringComparison.OrdinalIgnoreCase))?.Split('=')[1];
+
+        return new LogQuery(
+            IncludedCategories: SplitCsv(category),
+            ExcludedCategories: SplitCsv(excludedCategory),
+            MinVerbosity: minLevel,
+            ContainsText: contains,
+            Since: ParseTimeSpanOption(args, "--since="),
+            Until: ParseTimeSpanOption(args, "--until="),
+            ExcludeProfileNoise: excludeProfileNoise);
+    }
+
+    private static IReadOnlyList<string> SplitCsv(string? raw)
+    {
+        return string.IsNullOrWhiteSpace(raw)
+            ? []
+            : raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     }
 
     private static bool TryParseDedupeMode(string[] args, TextWriter error, out DedupeMode mode)
