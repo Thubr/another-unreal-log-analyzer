@@ -44,7 +44,23 @@ public sealed class InspectTerminalUi
             {
                 X = Pos.Right(searchLabel) + 1,
                 Y = 2,
-                Width = Dim.Percent(35)
+                Width = Dim.Fill(38)
+            };
+
+            var saveButton = new Button("Save Profile")
+            {
+                X = Pos.AnchorEnd(35),
+                Y = 2
+            };
+            var exportButton = new Button("Export")
+            {
+                X = Pos.AnchorEnd(20),
+                Y = 2
+            };
+            var exitButton = new Button("Exit")
+            {
+                X = Pos.AnchorEnd(9),
+                Y = 2
             };
 
             var categories = new ListView()
@@ -81,14 +97,21 @@ public sealed class InspectTerminalUi
                 Width = Dim.Fill(1),
                 Height = Dim.Fill(1),
                 ReadOnly = true,
-                WordWrap = true
+                WordWrap = true,
+                CanFocus = false
             };
 
             void Refresh()
             {
+                var previousCategoryIndex = categories.SelectedItem;
+                var previousLevelIndex = levels.SelectedItem;
+                var previousResultIndex = results.SelectedItem;
                 status.Text = BuildStatus(model);
                 categories.SetSource(BuildCategoryRows(model));
+                categories.SelectedItem = model.ClampCategorySelection(previousCategoryIndex);
+                levels.SelectedItem = previousLevelIndex < 0 ? 0 : Math.Min(previousLevelIndex, _levels.Length - 1);
                 results.SetSource(BuildEventRows(model.Results));
+                results.SelectedItem = model.Results.Count == 0 ? -1 : Math.Clamp(previousResultIndex, 0, Math.Min(model.Results.Count, 500) - 1);
                 UpdateDetails(model, results.SelectedItem, details);
                 window.SetNeedsDisplay();
             }
@@ -101,11 +124,13 @@ public sealed class InspectTerminalUi
 
             categories.OpenSelectedItem += _ =>
             {
-                var category = CategoryAt(model, categories.SelectedItem);
+                var categoryIndex = categories.SelectedItem;
+                var category = CategoryAt(model, categoryIndex);
                 if (category is not null)
                 {
                     model.ToggleCategory(category);
                     Refresh();
+                    categories.SelectedItem = model.ClampCategorySelection(categoryIndex);
                 }
             };
 
@@ -120,8 +145,11 @@ public sealed class InspectTerminalUi
 
             results.SelectedItemChanged += _ => UpdateDetails(model, results.SelectedItem, details);
             results.OpenSelectedItem += _ => UpdateDetails(model, results.SelectedItem, details);
+            saveButton.Clicked += () => SaveFilterProfile(model);
+            exportButton.Clicked += () => ShowExportCommand(model);
+            exitButton.Clicked += () => Application.RequestStop();
 
-            window.Add(status, searchLabel, search, categories, levels, results, details);
+            window.Add(status, searchLabel, search, saveButton, exportButton, exitButton, categories, levels, results, details);
             top.Add(window);
             Refresh();
 
@@ -136,6 +164,20 @@ public sealed class InspectTerminalUi
     private static void ShowExportCommand(InspectViewModel model)
     {
         MessageBox.Query("Export normalized command", model.ExportFilterCommand(), "OK");
+    }
+
+    private static void SaveFilterProfile(InspectViewModel model)
+    {
+        var path = model.DefaultFilterProfilePath();
+        try
+        {
+            model.SaveFilterProfile(path);
+            MessageBox.Query("Saved filter profile", path, "OK");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            MessageBox.ErrorQuery("Save failed", ex.Message, "OK");
+        }
     }
 
     private static string BuildStatus(InspectViewModel model)

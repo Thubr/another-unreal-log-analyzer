@@ -33,7 +33,7 @@ public sealed class MinimalUnrealLogParser : ILogEventSource
                 continue;
             }
 
-            if (IsContinuation(rawLine) && pending is not null)
+            if (pending is not null && IsContinuation(rawLine))
             {
                 if (options.IncludeContinuationLines)
                 {
@@ -59,7 +59,12 @@ public sealed class MinimalUnrealLogParser : ILogEventSource
         }
     }
 
-    private static bool IsContinuation(string line) => line.Length > 0 && char.IsWhiteSpace(line[0]);
+    private static bool IsContinuation(string line)
+    {
+        return line.Length > 0
+            && char.IsWhiteSpace(line[0])
+            && !LooksLikeLogEvent(line.TrimStart());
+    }
 
     private static LogEvent ParseLine(string rawLine, int lineNumber, LogInput input, ParserOptions options)
     {
@@ -69,8 +74,9 @@ public sealed class MinimalUnrealLogParser : ILogEventSource
         var verbosity = "Display";
         var message = rawLine.Trim();
 
-        var remainder = rawLine;
-        if (TryParseTimestampAndFrame(rawLine, out var parsedTimestamp, out var parsedFrame, out var rest))
+        var line = rawLine.TrimStart();
+        var remainder = line;
+        if (TryParseTimestampAndFrame(line, out var parsedTimestamp, out var parsedFrame, out var rest))
         {
             timestamp = parsedTimestamp;
             frame = parsedFrame;
@@ -81,6 +87,11 @@ public sealed class MinimalUnrealLogParser : ILogEventSource
         {
             category = parsedCategory;
             verbosity = parsedVerbosity;
+            message = parsedMessage;
+        }
+        else if (TryParseCategoryMessage(remainder, out parsedCategory, out parsedMessage))
+        {
+            category = parsedCategory;
             message = parsedMessage;
         }
 
@@ -102,6 +113,18 @@ public sealed class MinimalUnrealLogParser : ILogEventSource
             ContinuationLines: Array.Empty<string>(),
             Fields: fields,
             RawTextHash: hash);
+    }
+
+    private static bool LooksLikeLogEvent(string line)
+    {
+        if (TryParseTimestampAndFrame(line, out _, out _, out var rest))
+        {
+            return TryParseCategoryVerbosityMessage(rest, out _, out _, out _)
+                || TryParseCategoryMessage(rest, out _, out _);
+        }
+
+        return TryParseCategoryVerbosityMessage(line, out _, out _, out _)
+            || TryParseCategoryMessage(line, out _, out _);
     }
 
     private static bool TryParseTimestampAndFrame(string line, out DateTimeOffset timestamp, out int frame, out string remainder)
@@ -165,7 +188,40 @@ public sealed class MinimalUnrealLogParser : ILogEventSource
         category = line[..firstColon].Trim();
         verbosity = line[(firstColon + 1)..secondColon].Trim();
         message = line[(secondColon + 1)..].Trim();
-        return category.Length > 0 && verbosity.Length > 0;
+        return IsLogCategory(category) && IsKnownVerbosity(verbosity);
+    }
+
+    private static bool TryParseCategoryMessage(string line, out string category, out string message)
+    {
+        category = "Unknown";
+        message = line.Trim();
+
+        var firstColon = line.IndexOf(':');
+        if (firstColon <= 0)
+        {
+            return false;
+        }
+
+        category = line[..firstColon].Trim();
+        message = line[(firstColon + 1)..].Trim();
+        return IsLogCategory(category) && message.Length > 0;
+    }
+
+    private static bool IsLogCategory(string category)
+    {
+        return category.StartsWith("Log", StringComparison.Ordinal)
+            && category.All(c => char.IsLetterOrDigit(c) || c == '_');
+    }
+
+    private static bool IsKnownVerbosity(string verbosity)
+    {
+        return verbosity.Equals("Fatal", StringComparison.OrdinalIgnoreCase)
+            || verbosity.Equals("Error", StringComparison.OrdinalIgnoreCase)
+            || verbosity.Equals("Warning", StringComparison.OrdinalIgnoreCase)
+            || verbosity.Equals("Display", StringComparison.OrdinalIgnoreCase)
+            || verbosity.Equals("Log", StringComparison.OrdinalIgnoreCase)
+            || verbosity.Equals("Verbose", StringComparison.OrdinalIgnoreCase)
+            || verbosity.Equals("VeryVerbose", StringComparison.OrdinalIgnoreCase);
     }
 
     private static IReadOnlyDictionary<string, string> ExtractFields(string message)
