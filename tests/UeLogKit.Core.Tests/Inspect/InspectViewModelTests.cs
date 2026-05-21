@@ -20,7 +20,7 @@ public sealed class InspectViewModelTests
         Assert.Equal(["LogOnline"], model.Query.IncludedCategories);
         var match = Assert.Single(model.Results);
         Assert.Equal("LogOnline", match.Category);
-        Assert.Equal("uelog filter \"Game.log\" --category=LogOnline --normalize", model.ExportFilterCommand());
+        Assert.Equal("uelog analyze \"Game.log\" --category=LogOnline --normalize", model.ExportFilterCommand());
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public sealed class InspectViewModelTests
 
         var match = Assert.Single(model.Results);
         Assert.Equal(2, match.LineNumber);
-        Assert.Equal("uelog filter \"Game.log\" --min-level=Warning --contains=\"join\" --normalize", model.ExportFilterCommand());
+        Assert.Equal("uelog analyze \"Game.log\" --min-level=Warning --contains=\"join\" --normalize", model.ExportFilterCommand());
     }
 
     [Fact]

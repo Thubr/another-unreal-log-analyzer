@@ -180,6 +180,125 @@ public sealed class CliMvpCommandTests
     }
 
     [Fact]
+    public async Task Analyze_default_outputs_readable_event_rows()
+    {
+        var path = WriteSyntheticLog();
+        var stdout = new StringWriter();
+
+        var code = await CliApp.RunAsync(["analyze", path], stdout, new StringWriter(), default);
+
+        Assert.Equal(0, code);
+        var lines = stdout.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        Assert.Equal(3, lines.Length);
+        Assert.Contains("1: [LogInit] Display: Start", lines);
+        Assert.Contains("2: [LogNet] Warning: Packet loss", lines);
+    }
+
+    [Fact]
+    public async Task Analyze_dedupes_before_filtering()
+    {
+        var path = WriteSyntheticDedupeLog();
+        var stdout = new StringWriter();
+
+        var code = await CliApp.RunAsync(["analyze", path, "--dedupe=normalized", "--category=LogOnline"], stdout, new StringWriter(), default);
+
+        Assert.Equal(0, code);
+        var lines = stdout.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var line = Assert.Single(lines);
+        Assert.Equal("[2x] 3: [LogOnline] Warning: Session=<session_id> Ticket=<ticket_id>", line);
+    }
+
+    [Fact]
+    public async Task Analyze_clean_only_normalizes_and_dedupes_without_filters()
+    {
+        var path = WriteSyntheticDedupeLog();
+        var stdout = new StringWriter();
+
+        var code = await CliApp.RunAsync(["analyze", path, "--clean-only", "--dedupe=normalized"], stdout, new StringWriter(), default);
+
+        Assert.Equal(0, code);
+        var lines = stdout.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        Assert.Contains("[2x] LogNet: Warning: Polling state", lines);
+        Assert.Contains("[2x] LogOnline: Warning: Session=<session_id> Ticket=<ticket_id>", lines);
+    }
+
+    [Fact]
+    public async Task Analyze_summary_and_facets_print_counts()
+    {
+        var path = WriteSyntheticLog();
+        var stdout = new StringWriter();
+
+        var code = await CliApp.RunAsync(["analyze", path, "--summary", "--facets"], stdout, new StringWriter(), default);
+
+        Assert.Equal(0, code);
+        var text = stdout.ToString();
+        Assert.Contains("Total events: 3", text);
+        Assert.Contains("Warnings: 1", text);
+        Assert.Contains("Errors: 1", text);
+        Assert.Contains("Categories:", text);
+        Assert.Contains("LogInit\t1", text);
+        Assert.Contains("Verbosity:", text);
+        Assert.Contains("Warning\t1", text);
+    }
+
+    [Fact]
+    public async Task Analyze_json_outputs_structured_events()
+    {
+        var path = WriteSyntheticIdentifierLog();
+        var stdout = new StringWriter();
+
+        var code = await CliApp.RunAsync(["analyze", path, "--normalize", "--format=json"], stdout, new StringWriter(), default);
+
+        Assert.Equal(0, code);
+        var text = stdout.ToString();
+        Assert.StartsWith("[", text.TrimStart());
+        Assert.Contains("\"Category\": \"LogOnline\"", text);
+        Assert.Contains("Session=<session_id>", text);
+        Assert.DoesNotContain("Session-ABC123", text);
+    }
+
+    [Fact]
+    public async Task Analyze_ndjson_outputs_one_structured_event_per_line()
+    {
+        var path = WriteSyntheticLog();
+        var stdout = new StringWriter();
+
+        var code = await CliApp.RunAsync(["analyze", path, "--format=ndjson", "--limit=2"], stdout, new StringWriter(), default);
+
+        Assert.Equal(0, code);
+        var lines = stdout.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        Assert.Equal(2, lines.Length);
+        Assert.All(lines, line => Assert.StartsWith("{", line));
+    }
+
+    [Fact]
+    public async Task Analyze_explain_prints_resolved_pipeline()
+    {
+        var path = WriteSyntheticLog();
+        var stdout = new StringWriter();
+
+        var code = await CliApp.RunAsync(["analyze", path, "--normalize", "--dedupe=normalized", "--category=LogNet", "--min-level=Warning", "--explain"], stdout, new StringWriter(), default);
+
+        Assert.Equal(0, code);
+        Assert.Contains("Pipeline: parse -> normalize -> dedupe(normalized) -> filter(category=LogNet,min=Warning) -> text", stdout.ToString());
+    }
+
+    [Theory]
+    [InlineData("--dedupe=surprise", "Invalid cleanup option '--dedupe=surprise'. Expected one of: none, exact, normalized, burst.")]
+    [InlineData("--format=xml", "Invalid output option '--format=xml'. Expected one of: text, json, ndjson.")]
+    [InlineData("--min-level=Loud", "Invalid filter option '--min-level=Loud'. Expected one of: Fatal, Error, Warning, Display, Log, Verbose, VeryVerbose.")]
+    public async Task Analyze_rejects_invalid_pipeline_options(string option, string expectedError)
+    {
+        var path = WriteSyntheticLog();
+        var stderr = new StringWriter();
+
+        var code = await CliApp.RunAsync(["analyze", path, option], new StringWriter(), stderr, default);
+
+        Assert.Equal(1, code);
+        Assert.Contains(expectedError, stderr.ToString());
+    }
+
+    [Fact]
     public async Task Clean_outputs_simplified_lines()
     {
         var path = WriteSyntheticLog();

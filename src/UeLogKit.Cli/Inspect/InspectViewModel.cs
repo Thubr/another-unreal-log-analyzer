@@ -131,7 +131,7 @@ public sealed class InspectViewModel
         var parts = new List<string>
         {
             "uelog",
-            "filter",
+            "analyze",
             Quote(LogPath)
         };
 

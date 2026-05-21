@@ -19,16 +19,101 @@ build/uelog/win-x64/uelog.exe
 Run it directly:
 
 ```powershell
-./build/uelog/win-x64/uelog.exe parse path/to/synthetic.log --format=json
+./build/uelog/win-x64/uelog.exe analyze path/to/synthetic.log --summary
 ```
 
 The build output folder is local-only and is ignored by git.
 
-## Usage (CLI MVP)
+## Usage
 
-The repository now includes a minimal CLI project at `src/UeLogKit.Cli` with these commands:
+The primary CLI flow is `analyze`, a composable pipeline over one log:
+
+```text
+parse -> normalize/redact -> dedupe/clean -> filter -> summarize/project -> output
+```
 
 ```bash
+uelog analyze <logPath> [options]
+uelog inspect <logPath> [--profile=<Profile>]
+```
+
+### `analyze` options
+
+Cleanup and dedupe:
+
+```bash
+--normalize
+--dedupe=none|exact|normalized|burst
+--clean-only
+```
+
+Filters:
+
+```bash
+--category=<Category>
+--category=<A>,<B>
+--exclude-category=<A>,<B>
+--min-level=<Fatal|Error|Warning|Display|Log|Verbose|VeryVerbose>
+--contains=<Text>
+--filter=<Text>
+--since=<TimeSpan>
+--until=<TimeSpan>
+--profile=<Profile>
+```
+
+Output:
+
+```bash
+--summary
+--facets
+--no-events
+--format=text|json|ndjson
+--out=<path>
+--limit=<n>
+--explain
+--preset=triage|clean|errors|online
+```
+
+By default, `uelog analyze <logPath>` prints concise readable event rows. It does not dedupe or normalize unless requested. `--clean-only` defaults to normalized readable output.
+
+### Common workflows
+
+I want to remove duplicates:
+
+```bash
+uelog analyze Saved/Logs/Game.log --clean-only --dedupe=normalized
+```
+
+I want only errors and warnings:
+
+```bash
+uelog analyze Saved/Logs/Game.log --min-level=Warning
+```
+
+I want a clean file for sharing:
+
+```bash
+uelog analyze Saved/Logs/Game.log --clean-only --dedupe=normalized --out=Saved/Logs/Game.clean.log
+```
+
+I want machine-readable output:
+
+```bash
+uelog analyze Saved/Logs/Game.log --dedupe=normalized --category=LogOnline --format=ndjson
+```
+
+I want to understand what will run:
+
+```bash
+uelog analyze Saved/Logs/Game.log --normalize --dedupe=normalized --category=LogNet --min-level=Warning --explain
+```
+
+### Other commands
+
+The CLI still includes these focused commands for compatibility and direct access to narrower stages:
+
+```bash
+uelog analyze <logPath> [options]
 uelog parse <logPath> [--format=json|ndjson] [--normalize]
 uelog summarize <logPath> [--profile=<Profile>]
 uelog filter <logPath> [--category=<Category>] [--min-level=<Level>] [--profile=<Profile>] [--normalize]
@@ -38,6 +123,15 @@ uelog inspect <logPath> [--profile=<Profile>]
 ```
 
 ### Command details
+
+- `analyze`
+  - Runs the composable parse, cleanup, filter, summary, and output pipeline.
+  - `--dedupe=normalized --category=<Category>` dedupes before filtering.
+  - `--clean-only` emits simplified `Category: Verbosity: Message` lines and normalizes by default.
+  - `--summary --facets` prints event totals, warning/error totals, category counts, and verbosity counts.
+  - `--format=json` writes a JSON array of matching structured events.
+  - `--format=ndjson` writes one matching structured event per line.
+  - `--preset=triage|clean|errors|online` applies a workflow shortcut; explicit flags override preset defaults.
 
 - `parse`
   - Parses a log file through the current default parser and writes structured events.
@@ -77,11 +171,16 @@ uelog inspect <logPath> [--profile=<Profile>]
 - `inspect`
   - Opens a full-pane terminal facet browser over one parsed log.
   - Shows category counts, level filters, matching events, and selected-event detail.
-  - Exports a reproducible normalized `uelog filter` command from the current filter state.
+  - Exports a reproducible normalized `uelog analyze` command from the current filter state.
 
 ### Examples
 
 ```bash
+uelog analyze Saved/Logs/Game.log
+uelog analyze Saved/Logs/Game.log --dedupe=normalized --category=LogOnline --min-level=Warning
+uelog analyze Saved/Logs/Game.log --clean-only --dedupe=normalized
+uelog analyze Saved/Logs/Game.log --profile=ue-online --summary --facets
+uelog analyze Saved/Logs/Game.log --dedupe=burst --filter=join --format=ndjson
 uelog parse Saved/Logs/Game.log --format=json
 uelog parse Saved/Logs/Game.log --format=ndjson
 uelog parse Saved/Logs/Game.log --format=json --normalize
@@ -94,5 +193,3 @@ uelog categories Saved/Logs/Game.log --profile=ue-default
 uelog categories Saved/Logs/Game.log --format=json
 uelog inspect Saved/Logs/Game.log --profile=ue-online
 ```
-
-> Note: this is an intentionally narrow MVP command surface focused on parse/summarize/filter/clean flows.
